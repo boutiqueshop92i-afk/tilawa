@@ -24,7 +24,8 @@ export default async function handler(request) {
   const fr = u.searchParams.get('lang') === 'fr';
   const page = Math.max(1, Math.min(10, parseInt(u.searchParams.get('page') || '1', 10) || 1));
   if (!q) return json({ error: 'no_query' }, 400);
-  if (process.env.PIXABAY_API_KEY) return pixabay(process.env.PIXABAY_API_KEY, q, kind, fr, page);
+  const pixKey = process.env.PIXABAY_API_KEY || process.env.CLE_API_PIXABAY || process.env.PIXABAY_KEY;
+  if (pixKey) return pixabay(pixKey, q, kind, fr, page);
   if (process.env.PEXELS_API_KEY) return pexels(process.env.PEXELS_API_KEY, q, kind, fr, page);
   return json({ error: 'no_key' }, 503);
 }
