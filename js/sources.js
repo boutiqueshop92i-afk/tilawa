@@ -210,15 +210,18 @@
         }
       } catch(e){ /* minutage indisponible : repérage automatique */ }
     }
-    let approx = false;
+    let approx = false, estA = 0, estB = 0;
     if(t0 == null){
       if(!dur) throw new Error('durée inconnue');
-      // Estimation par la longueur du texte, avec de la marge
+      // Pas de minutage : position estimée d'après la longueur du texte, avec de la marge.
+      // L'appli fait ensuite régler le début et la fin à l'oreille.
       const W = weights.all, before = W.slice(0, first - 1).reduce((s, x) => s + x, 0), upto = W.slice(0, last).reduce((s, x) => s + x, 0), sum = W.reduce((s, x) => s + x, 0);
       const intro = Math.min(12, dur * 0.04);
       const est = x => intro + (dur - intro) * x / sum;
-      t0 = first === 1 ? 0 : Math.max(0, est(before) - Math.max(3, dur * 0.03));
-      t1 = last === W.length ? dur : Math.min(dur, est(upto) + Math.max(3, dur * 0.03));
+      estA = first === 1 ? 0 : est(before); estB = last === W.length ? dur : est(upto);
+      const pad = Math.max(4, Math.min(45, dur * 0.03 + (estB - estA) * 0.1));
+      t0 = first === 1 ? 0 : Math.max(0, estA - pad);
+      t1 = last === W.length ? dur : Math.min(dur, estB + pad);
       approx = !(first === 1 && last === W.length);
     }
     // 2. Téléchargement de la partie utile seulement (ou du fichier entier s'il est petit)
@@ -245,7 +248,8 @@
         return {buffer: ctx.concatBuffers([bas, buffer]), starts: [0, ...starts.map(x => Math.round((x + bas.duration) * 100) / 100)], exact: true, approx};
       } catch(e){ return {buffer, starts, exact: true, approx, dropBasmala: true}; }
     }
-    return {buffer, starts, exact: !!starts, approx};
+    const rel = x => Math.max(0, Math.min(buffer.duration, x - base - s0));
+    return {buffer, starts, exact: !!starts, approx, est: approx ? {a: rel(estA), b: rel(estB)} : null};
   }
   async function basmalaOf(rec, ctx){
     if(!rec.read || (rec.surahs && rec.surahs.length && !rec.surahs.includes(1))) throw new Error('pas de Fatiha');

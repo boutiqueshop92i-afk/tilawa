@@ -223,7 +223,8 @@ function renderVerseList(){
 }
 function onVersesChanged(){
   S.durs = S.verses.map(defaultDur);
-  if(S.audioMode === 'single' && S.buffer) runDetect(true);
+  if(S.audioMode === 'single' && S.approxFrom){ S.approxFrom = false; setAudioMode('reciter'); }
+  else if(S.audioMode === 'single' && S.buffer) runDetect(true);
   else if(S.audioMode === 'multi' && S.buffer) multiStarts();
   else if(S.audioMode === 'reciter') buildReciter();
   if(S.verses.length) hideMsg();
@@ -711,6 +712,7 @@ async function buildReciter(){
   try {
     const r = await TilawaSources.build(rec, S.surah, S.verses, ctx, weights);
     if(seq !== recSeq) return;
+    if(r.approx && r.est){ useApproxWindow(rec, r); return; }
     S.buffer = r.buffer;
     if(r.dropBasmala && S.verses[0] && S.verses[0].basmala){ S.verses = S.verses.slice(1); renderVerseList(); rebuild(); }
     if(S.style.reciterAuto || !(S.style.reciter || '').trim()){ S.style.reciter = rec.name; S.style.reciterAuto = true; $('inReciter').value = rec.name; buildFooter(); store(); }
@@ -731,6 +733,28 @@ async function buildReciter(){
     setStatus($('syncStatus'), msg, 'bad'); showMsg(msg);
     renderTimings(); syncScrub(); render(currentT());
   }
+}
+/* Récitateur sans minutage, passage au milieu d'une sourate : on charge un extrait un peu plus large
+   dans « Mon fichier » pour régler le début et la fin à l'oreille. */
+function useApproxWindow(rec, r){
+  S.srcBuffer = r.buffer; S.fileName = rec.name; S.everyayah = false; S.approxFrom = true;
+  const pl = $('srcPlayer'); if(pl.src) URL.revokeObjectURL(pl.src); pl.src = URL.createObjectURL(wavBlob(r.buffer, 16000)); pl.hidden = false;
+  $('inStart').value = round1(r.est.a); $('inEnd').value = round1(Math.max(r.est.a + 1, r.est.b));
+  $('trimBox').hidden = false;
+  setStatus($('singleName'), rec.name + ' : extrait de ' + fmt(r.buffer.duration) + ' autour du passage.', 'warn');
+  if(S.style.reciterAuto || !(S.style.reciter || '').trim()){ S.style.reciter = rec.name; S.style.reciterAuto = true; $('inReciter').value = rec.name; buildFooter(); }
+  setAudioMode('single');
+  setStatus($('syncStatus'), rec.name + ' n’a pas de minutage officiel : écoute l’extrait, place le début et la fin du passage avec « ⌖ ici », puis vérifie la synchro (au doigt si besoin). Ou choisis un récitateur « synchro exacte ».', 'warn');
+  hideMsg(); openStudio('audio'); updateCaption();
+  toast('Règle le début et la fin du passage à l’étape 2 « Audio ».', 6000);
+}
+function wavBlob(b, rate){
+  const src = b.getChannelData(0), k = b.sampleRate / rate, n = Math.floor(src.length / k), out = new DataView(new ArrayBuffer(44 + n * 2));
+  const w = (o, str) => { for(let i=0;i<str.length;i++) out.setUint8(o + i, str.charCodeAt(i)); };
+  w(0, 'RIFF'); out.setUint32(4, 36 + n * 2, true); w(8, 'WAVE'); w(12, 'fmt '); out.setUint32(16, 16, true); out.setUint16(20, 1, true); out.setUint16(22, 1, true);
+  out.setUint32(24, rate, true); out.setUint32(28, rate * 2, true); out.setUint16(32, 2, true); out.setUint16(34, 16, true); w(36, 'data'); out.setUint32(40, n * 2, true);
+  for(let i=0;i<n;i++){ const a = Math.floor(i * k), z = Math.max(a + 1, Math.floor((i + 1) * k)); let sum = 0; for(let j=a;j<z;j++) sum += src[j]; let x = sum / (z - a); x = x < -1 ? -1 : x > 1 ? 1 : x; out.setInt16(44 + i * 2, x < 0 ? x * 0x8000 : x * 0x7FFF, true); }
+  return new Blob([out.buffer], {type:'audio/wav'});
 }
 function updateReciterUI(){
   const rec = currentReciter();
@@ -1207,8 +1231,8 @@ function initUI(){
     if(b.dataset.tab === 'style') renderSurahThemes();
   });
 
-  document.querySelectorAll('#audioMode button').forEach(b => b.onclick = () => setAudioMode(b.dataset.mode));
-  $('fileSingle').onchange = e => onSingleFile(e.target.files[0]);
+  document.querySelectorAll('#audioMode button').forEach(b => b.onclick = () => { if(b.dataset.mode !== 'single') S.approxFrom = false; setAudioMode(b.dataset.mode); });
+  $('fileSingle').onchange = e => { S.approxFrom = false; onSingleFile(e.target.files[0]); };
   $('fileMulti').onchange = e => onMultiFiles(e.target.files);
   $('inStart').onchange = applyTrim; $('inEnd').onchange = applyTrim;
   $('btnSetStart').onclick = () => { $('inStart').value = round1($('srcPlayer').currentTime || 0); applyTrim(); };
