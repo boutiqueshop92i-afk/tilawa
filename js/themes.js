@@ -17,7 +17,7 @@
     12: [['Désert','desert caravan camels'], ['Vieux puits','old stone well']],
     13: [['Orage','thunderstorm lightning'], ['Nuages','dramatic clouds']],
     14: [['La Mecque','mecca kaaba'], ['Grand arbre','big tree']],
-    15: [['Tombeaux de Hégra','hegra alula'], ['Rochers rouges','red rocks canyon']],
+    15: [['Tombeaux dans la roche','rock tombs petra'], ['Rochers rouges','red rocks canyon'], ['Al-Ula','alula desert rocks']],
     16: [['Abeilles','bees honeycomb'], ['Champ de fleurs','flower field']],
     17: [['Nuit étoilée','night sky stars'], ['Al-Aqsa','al aqsa mosque']],
     18: [['Grotte','cave'], ['Montagnes','mountains mist']],
