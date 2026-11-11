@@ -198,6 +198,8 @@ body.noscroll{overflow:hidden}
 @media (min-width:900px){.bgs{grid-template-columns:repeat(5,minmax(0,1fr))}}
 .bgt{appearance:none;position:relative;display:block;width:100%;border:1px solid var(--line);border-radius:12px;padding:0;overflow:hidden;cursor:pointer;background:#111829;aspect-ratio:9/16}
 .bgt img{position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:cover}
+.bgt .badge{position:absolute;top:6px;left:6px;padding:2px 7px;border-radius:999px;background:rgba(0,0,0,.6);color:#fff;font-size:11px;font-weight:600}
+.bgt.loading{opacity:.55}
 .bgt .lab{position:absolute;left:0;right:0;bottom:0;padding:16px 8px 7px;font-size:12px;font-weight:500;line-height:1.2;color:#fff;background:linear-gradient(transparent,rgba(0,0,0,.7));text-align:left}
 .bgt[aria-checked=true]{box-shadow:0 0 0 2px var(--gold);border-color:var(--gold)}
 .own{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
@@ -369,8 +371,16 @@ body.noscroll{overflow:hidden}
 
     <!-- 3. STYLE -->
     <div class="tab" id="tab-style" role="tabpanel" aria-labelledby="t-style" hidden>
+      <div class="field" id="smBox">
+        <span class="lbl" id="smTitle">Fonds pour la sourate</span>
+        <div class="chips scene-chips" id="smChips" role="radiogroup" aria-labelledby="smTitle"></div>
+        <div class="row3"><input id="smSearch" type="search" placeholder="Autre fond : oiseaux, pluie, montagnes…" aria-label="Chercher un fond" autocomplete="off"><button id="smGo" class="btn" type="button">Chercher</button></div>
+        <p id="smStatus" class="status"></p>
+        <div class="bgs" id="smGrid" role="radiogroup" aria-labelledby="smTitle"></div>
+        <p class="hint">Photos et vidéos de <a href="https://www.pexels.com/fr-fr/" target="_blank" rel="noopener">Pexels</a>, libres de droits. Sans personnes.</p>
+      </div>
       <div class="field">
-        <span class="lbl" id="lblBg">Fond · 13 décors × 9 couleurs, animés, sans aucun signe</span>
+        <span class="lbl" id="lblBg">Fonds animés · 13 décors × 9 couleurs, sans aucun signe</span>
         <div class="chips scene-chips" id="sceneChips" role="radiogroup" aria-label="Décor"></div>
         <div class="bgs" id="bgGrid" role="radiogroup" aria-labelledby="lblBg"></div>
         <div id="bgOwn">
@@ -480,9 +490,10 @@ body.noscroll{overflow:hidden}
 </div>
 <div id="toast" class="toast" role="status" hidden></div>
 
-<script src="/js/scenes.js?v=4"></script>
-<script src="/js/sources.js?v=4"></script>
-<script src="/js/mux.js?v=4"></script>
-<script src="/js/app.js?v=4"></script>
+<script src="/js/scenes.js?v=5"></script>
+<script src="/js/themes.js?v=5"></script>
+<script src="/js/sources.js?v=5"></script>
+<script src="/js/mux.js?v=5"></script>
+<script src="/js/app.js?v=5"></script>
 </body>
 </html>

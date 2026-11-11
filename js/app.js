@@ -912,7 +912,7 @@ function buildChips(){
 }
 function setBg(bg){
   S.style.bg = bg;
-  markBg();
+  markBg(); markMedia();
   if(S.media.video){ if(bg === 'video') { S.media.video.currentTime = 0; } else S.media.video.pause(); }
   if(!P) render(currentT()); store();
 }
@@ -955,6 +955,67 @@ function renderBgGrid(){
     setTimeout(step, 16);
   };
   step();
+}
+/* ---------- Fonds de la sourate : photos et vidéos Pexels ---------- */
+const mediaCache = new Map(); let mediaSeq = 0, mediaQuery = '', mediaSurah = 0;
+function renderSurahThemes(force){
+  const su = S.surah; if(!force && mediaSurah === su) return; mediaSurah = su;
+  $('smTitle').textContent = 'Fonds pour la sourate ' + SURAHS[su-1][0] + ' (' + SURAHS[su-1][1] + ')';
+  const chips = $('smChips'); chips.textContent = '';
+  const themes = TilawaThemes.forSurah(su);
+  themes.forEach(([label, q]) => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'chip'; b.setAttribute('role', 'radio'); b.dataset.q = q; b.textContent = label;
+    b.onclick = () => loadMedia(q, false); chips.append(b);
+  });
+  loadMedia(themes[0][1], false);
+}
+async function loadMedia(q, fr){
+  mediaQuery = q;
+  $('smChips').querySelectorAll('.chip').forEach(c => c.setAttribute('aria-checked', String(c.dataset.q === q)));
+  const grid = $('smGrid'); grid.textContent = '';
+  setStatus($('smStatus'), 'Recherche de fonds…');
+  const seq = ++mediaSeq, key = (fr ? 'fr:' : '') + q;
+  let data = mediaCache.get(key);
+  if(!data){
+    try { const r = await fetch('/api/media?q=' + encodeURIComponent(q) + (fr ? '&lang=fr' : '')); data = await r.json(); if(r.ok) mediaCache.set(key, data); }
+    catch(e){ data = {error:'network'}; }
+  }
+  if(seq !== mediaSeq) return;
+  if(data.error === 'no_key' || data.error === 'bad_key'){ setStatus($('smStatus'), 'Les photos et vidéos ne sont pas encore activées : la clé Pexels manque dans les réglages Vercel. Les fonds animés plus bas marchent déjà.', 'warn'); return; }
+  if(data.error){ setStatus($('smStatus'), 'Les fonds n’ont pas pu être chargés. Vérifie ta connexion et réessaie.', 'bad'); return; }
+  const items = [];
+  const v = data.videos || [], p = data.photos || [];
+  for(let i = 0; i < Math.max(v.length, p.length); i++){ if(v[i]) items.push(Object.assign({video:true}, v[i])); if(p[i]) items.push(p[i]); if(p[i + 9]) items.push(p[i + 9]); }
+  const seen = new Set(), list = items.filter(it => !seen.has(it.id) && seen.add(it.id));
+  if(!list.length){ setStatus($('smStatus'), 'Aucun fond trouvé pour ce thème. Essaie un autre mot.', 'warn'); return; }
+  setStatus($('smStatus'), v.length + ' vidéo' + (v.length > 1 ? 's' : '') + ' et ' + p.length + ' photo' + (p.length > 1 ? 's' : '') + '. Touche un fond pour l’essayer.');
+  for(const it of list){
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'bgt'; b.setAttribute('role', 'radio'); b.dataset.id = it.id;
+    b.setAttribute('aria-label', (it.video ? 'Vidéo' : 'Photo') + (it.alt ? ' : ' + it.alt : ''));
+    b.setAttribute('aria-checked', 'false'); b.style.background = it.color || '#111829';
+    const img = document.createElement('img'); img.alt = ''; img.loading = 'lazy'; img.decoding = 'async'; img.referrerPolicy = 'no-referrer'; img.src = it.thumb; b.append(img);
+    if(it.video){ const t = document.createElement('span'); t.className = 'badge'; t.textContent = '▶ ' + Math.round(it.dur || 0) + ' s'; b.append(t); }
+    b.onclick = () => useMedia(it, b);
+    grid.append(b);
+  }
+  markMedia();
+}
+async function useMedia(it, btn){
+  if(X || (P && P.mode === 'record')){ toast('Une vidéo est en cours de création.'); return; }
+  btn.classList.add('loading');
+  toast(it.video ? 'Chargement de la vidéo de fond…' : 'Chargement de la photo…', 2500);
+  try {
+    const r = await TilawaSources.smartFetch(it.video ? it.file : it.full);
+    const blob = await r.blob();
+    const f = new File([blob], it.id + (it.video ? '.mp4' : '.jpg'), {type: blob.type || (it.video ? 'video/mp4' : 'image/jpeg')});
+    S.mediaPick = it.id;
+    if(it.video) onVideo(f); else onImage(f);
+  } catch(e){ console.error(e); toast('Ce fond n’a pas pu être chargé. Essaie-en un autre.'); }
+  finally { btn.classList.remove('loading'); }
+}
+function markMedia(){
+  const on = S.style.bg === 'image' || S.style.bg === 'video';
+  document.querySelectorAll('#smGrid .bgt').forEach(b => b.setAttribute('aria-checked', String(on && b.dataset.id === S.mediaPick)));
 }
 function styleChanged(){ store(); rebuild(); updateCaption(); }
 function syncStyleInputs(){
@@ -1142,6 +1203,7 @@ function initUI(){
     document.querySelectorAll('.steps button').forEach(x => x.setAttribute('aria-selected', String(x === b)));
     document.querySelectorAll('.tab').forEach(t => t.hidden = t.id !== 'tab-' + b.dataset.tab);
     if(b.dataset.tab === 'export') updateExportInfo();
+    if(b.dataset.tab === 'style') renderSurahThemes();
   });
 
   document.querySelectorAll('#audioMode button').forEach(b => b.onclick = () => setAudioMode(b.dataset.mode));
@@ -1156,8 +1218,10 @@ function initUI(){
   $('btnRecTap').onclick = startTap;
 
   buildBgPicker();
-  $('fileImg').onchange = e => onImage(e.target.files[0]);
-  $('fileVid').onchange = e => onVideo(e.target.files[0]);
+  $('fileImg').onchange = e => { S.mediaPick = null; onImage(e.target.files[0]); };
+  $('fileVid').onchange = e => { S.mediaPick = null; onVideo(e.target.files[0]); };
+  $('smGo').onclick = () => { const q = $('smSearch').value.trim(); if(q) loadMedia(q, true); };
+  $('smSearch').addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); $('smGo').click(); } });
   $('ownImg').onclick = () => setBg('image'); $('ownVid').onclick = () => setBg('video');
   $('rgOverlay').oninput = () => { S.style.overlay = +$('rgOverlay').value; $('oOverlay').textContent = Math.round(S.style.overlay*100) + ' %'; if(!P) render(currentT()); store(); };
   $('selFont').onchange = () => { S.style.arFont = $('selFont').value; styleChanged(); };
