@@ -186,7 +186,7 @@
     const hasB = verses[0] && verses[0].basmala, real = verses.filter(v => !v.basmala), first = real[0].n, last = real[real.length - 1].n;
 
     // 1. Où est le passage dans le fichier ?
-    let t0, t1, marks = null, exact = false;
+    let t0, t1, marks = null, exact = false, needBasmala = false;
     if(rec.read){
       try {
         const tm = await getTiming(rec.read, surah);
@@ -196,12 +196,16 @@
         const at = n => arr.find(x => +x.ayah === n);
         const a = at(first), z = at(last);
         if(a && z){
-          const intro = at(0);
-          t0 = hasB && first === 1 ? (intro ? +intro.start_time / scale : 0) : +a.start_time / scale;
+          const intro = at(0), s1 = +a.start_time / scale;
+          t0 = s1;
+          if(hasB && first === 1){
+            if(intro && (+intro.end_time - +intro.start_time) / scale > 1) t0 = +intro.start_time / scale;
+            else if(s1 > 1.5) t0 = 0;              // Basmala (et isti'adha) avant le verset 1, sans entrée à part
+            else needBasmala = true;               // Le fichier commence directement au verset 1
+          }
           t1 = +z.end_time / scale;
-          marks = []; if(hasB) marks.push(t0);
+          marks = []; if(hasB && !needBasmala) marks.push(t0);
           for(const v of real){ const e = at(v.n); marks.push(e ? +e.start_time / scale : NaN); }
-          if(hasB && first === 1 && marks.length > 1 && !(marks[1] > marks[0] + 0.5)) marks[1] = NaN;
           exact = marks.every(x => isFinite(x));
         }
       } catch(e){ /* minutage indisponible : repérage automatique */ }
@@ -234,7 +238,24 @@
     let starts = null;
     if(exact) starts = marks.map(m => Math.max(0, Math.round((m - base - s0) * 100) / 100));
     if(starts){ starts[0] = 0; for(let i = 1; i < starts.length; i++) if(!(starts[i] > starts[i-1])) { starts = null; break; } }
+    if(needBasmala && starts){
+      // Basmala prise dans Al-Fatiha, avec la même voix ; sinon on l'enlève de la vidéo
+      try {
+        const bas = await basmalaOf(rec, ctx);
+        return {buffer: ctx.concatBuffers([bas, buffer]), starts: [0, ...starts.map(x => Math.round((x + bas.duration) * 100) / 100)], exact: true, approx};
+      } catch(e){ return {buffer, starts, exact: true, approx, dropBasmala: true}; }
+    }
     return {buffer, starts, exact: !!starts, approx};
+  }
+  async function basmalaOf(rec, ctx){
+    if(!rec.read || (rec.surahs && rec.surahs.length && !rec.surahs.includes(1))) throw new Error('pas de Fatiha');
+    const tm = await getTiming(rec.read, 1), e1 = (Array.isArray(tm) ? tm : []).find(x => +x.ayah === 1);
+    if(!e1) throw new Error('pas de minutage');
+    const full = await ctx.decode((await getBuffer(rec.server + '001.mp3')).buf);
+    const maxEnd = Math.max(...tm.map(x => +x.end_time || 0)), scale = Math.abs(maxEnd / 1000 - full.duration) < Math.abs(maxEnd - full.duration) ? 1000 : 1;
+    const part = ctx.sliceBuffer(full, Math.max(0, +e1.start_time / scale - 0.05), Math.min(full.duration, +e1.end_time / scale + 0.1));
+    const sb = ctx.speechBounds(part);
+    return ctx.sliceBuffer(part, Math.max(0, sb.first - 0.08), Math.min(part.duration, sb.last + 0.35));
   }
   async function build(rec, surah, verses, ctx, weights){
     if(rec.source === 'everyayah') return buildEveryayah(rec, surah, verses, ctx);
@@ -242,7 +263,7 @@
   }
 
   /* Récitateurs mis en avant (souvent sur TikTok) */
-  const POPULAR = [/dossar|dosar|dussar/i, /luhaid|lohaid/i, /islam sob/i, /raad|ra'ad/i, /salimi/i, /nufais|nofais/i, /mossad|mosad/i, /turki/i, /hazza|hazaa/i, /muaiqly|mueaqly|maher/i, /sudais|soudais/i, /shuraim|shuraym|chouraim/i, /ghamdi|ghamadi/i, /ajam|ajmi/i, /qatami|katami/i, /alafas|afasy|afassi/i, /abbad/i, /abdul ?basit|abdelbasset|abd al-basit/i, /minshaw|menshaw/i, /husar|hosar|hussary/i, /balil|baleela/i, /juhan|juhayn/i];
+  const POPULAR = [/d[ou]{1,2}s{1,2}ar/i, /luhaid|lohaid/i, /sobhi/i, /kurdi/i, /salimi/i, /nuf[ae]is|nofais/i, /mossad|mosad/i, /turk/i, /hazz?a|balush/i, /m[eu]+a[iq]+l|maher al/i, /s[ou]+dais/i, /sh?ura[iy]m|chouraim|shureim/i, /gh?am[ie]?di|ghamadi/i, /ajam|ajmi/i, /[qk]atami/i, /afas/i, /abbad/i, /abd ?el ?bass?it|abdul ?basit|abdelbasset/i, /m[ei]n[cs]hawi|minshaw/i, /h[ou]s+ar[iy]/i, /balil|baleel/i, /jal+il/i, /juh[ae]n|juhayn/i];
   const isPopular = name => POPULAR.some(re => re.test(name));
 
   global.TilawaSources = {EA, loadCatalog, build, isPopular, getJSON, smartFetch, mp3Info};

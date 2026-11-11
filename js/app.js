@@ -712,10 +712,11 @@ async function buildReciter(){
     const r = await TilawaSources.build(rec, S.surah, S.verses, ctx, weights);
     if(seq !== recSeq) return;
     S.buffer = r.buffer;
+    if(r.dropBasmala && S.verses[0] && S.verses[0].basmala){ S.verses = S.verses.slice(1); renderVerseList(); rebuild(); }
     if(S.style.reciterAuto || !(S.style.reciter || '').trim()){ S.style.reciter = rec.name; S.style.reciterAuto = true; $('inReciter').value = rec.name; buildFooter(); store(); }
     if(r.starts && r.starts.length === S.verses.length){
       S.recExact = true;
-      setStarts(r.starts, 'Récitation de ' + rec.name + ' prête : ' + fmt(S.buffer.duration) + ', synchro exacte.', 'good');
+      setStarts(r.starts, 'Récitation de ' + rec.name + ' prête : ' + fmt(S.buffer.duration) + ', synchro exacte.' + (r.dropBasmala ? ' Ce récitateur ne lit pas la Basmala au début de cette sourate : elle est retirée.' : ''), 'good');
     } else {
       runDetect(true);
       setStatus($('syncStatus'), 'Récitation prête (' + fmt(S.buffer.duration) + '). Versets placés automatiquement sur les pauses' + (r.approx ? ', passage repéré approximativement dans la sourate' : '') + ' : vérifie à l’aperçu et utilise « Synchroniser au doigt » si un verset tombe mal.', 'warn');
