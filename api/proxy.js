@@ -1,4 +1,4 @@
-// Relais : récupère les récitations (mp3quran, everyayah, quranicaudio) et les fonds Pexels
+// Relais : récupère les récitations (mp3quran, everyayah, quranicaudio) et les fonds Pixabay / Pexels
 // pour que la page puisse les mettre dans la vidéo, même quand le site
 // d'origine ne l'autorise pas directement. Uniquement ces sites : pas un relais ouvert.
 export const config = { runtime: 'edge' };
@@ -8,7 +8,8 @@ const ALLOWED = [
   /^([a-z0-9-]+\.)*everyayah\.com$/i,
   /^([a-z0-9-]+\.)*quranicaudio\.com$/i,
   /^([a-z0-9-]+\.)*qurancdn\.com$/i,
-  /^([a-z0-9-]+\.)*pexels\.com$/i
+  /^([a-z0-9-]+\.)*pexels\.com$/i,
+  /^([a-z0-9-]+\.)*pixabay\.com$/i
 ];
 
 export default async function handler(request) {

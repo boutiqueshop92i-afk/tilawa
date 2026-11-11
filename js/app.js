@@ -981,7 +981,8 @@ async function loadMedia(q, fr){
     catch(e){ data = {error:'network'}; }
   }
   if(seq !== mediaSeq) return;
-  if(data.error === 'no_key' || data.error === 'bad_key'){ setStatus($('smStatus'), 'Les photos et vidéos ne sont pas encore activées : la clé Pexels manque dans les réglages Vercel. Les fonds animés plus bas marchent déjà.', 'warn'); return; }
+  if(data.error === 'no_key' || data.error === 'bad_key'){ setStatus($('smStatus'), data.error === 'bad_key' ? 'La clé Pixabay enregistrée dans Vercel ne marche pas : vérifie-la.' : 'Les photos et vidéos ne sont pas encore activées : la clé Pixabay manque dans les réglages Vercel. Les fonds animés plus bas marchent déjà.', 'warn'); return; }
+  if(data.provider) $('smCredit').textContent = data.provider;
   if(data.error){ setStatus($('smStatus'), 'Les fonds n’ont pas pu être chargés. Vérifie ta connexion et réessaie.', 'bad'); return; }
   const items = [];
   const v = data.videos || [], p = data.photos || [];

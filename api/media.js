@@ -1,5 +1,5 @@
-// Recherche de photos et de vidéos de fond sur Pexels (libres de droits, utilisables sur TikTok).
-// La clé reste sur le serveur : variable d'environnement PEXELS_API_KEY dans Vercel.
+// Recherche de photos et de vidéos de fond libres de droits (utilisables sur TikTok) :
+// Pixabay (variable PIXABAY_API_KEY dans Vercel) ou Pexels (PEXELS_API_KEY). La clé reste sur le serveur.
 // Aucune personne : on écarte les résultats dont la description parle de gens.
 export const config = { runtime: 'edge' };
 
@@ -19,22 +19,55 @@ const crop = (src, w, h) => src + (src.includes('?') ? '&' : '?') + `auto=compre
 
 export default async function handler(request) {
   const u = new URL(request.url);
-  const q = (u.searchParams.get('q') || '').trim().slice(0, 80);
+  const q = (u.searchParams.get('q') || '').trim().slice(0, 90);
   const kind = u.searchParams.get('kind') || 'both';
-  const locale = u.searchParams.get('lang') === 'fr' ? '&locale=fr-FR' : '';
+  const fr = u.searchParams.get('lang') === 'fr';
   const page = Math.max(1, Math.min(10, parseInt(u.searchParams.get('page') || '1', 10) || 1));
-  const key = process.env.PEXELS_API_KEY;
-  if (!key) return json({ error: 'no_key' }, 503);
   if (!q) return json({ error: 'no_query' }, 400);
+  if (process.env.PIXABAY_API_KEY) return pixabay(process.env.PIXABAY_API_KEY, q, kind, fr, page);
+  if (process.env.PEXELS_API_KEY) return pexels(process.env.PEXELS_API_KEY, q, kind, fr, page);
+  return json({ error: 'no_key' }, 503);
+}
+
+async function pixabay(key, q, kind, fr, page) {
+  const base = `key=${encodeURIComponent(key)}&q=${encodeURIComponent(q)}&safesearch=true&page=${page}&lang=${fr ? 'fr' : 'en'}`;
+  const get = url => fetch(url).then(r => (r.ok ? r.json() : Promise.reject(r.status)));
+  const [p, v] = await Promise.all([
+    kind !== 'video' ? get(`https://pixabay.com/api/?${base}&image_type=photo&orientation=vertical&per_page=40`).catch(e => ({ error: e })) : null,
+    kind !== 'photo' ? get(`https://pixabay.com/api/videos/?${base}&video_type=film&per_page=30`).catch(e => ({ error: e })) : null
+  ]);
+  if ((p && (p.error === 400 || p.error === 401)) && (!v || v.error)) return json({ error: 'bad_key' }, 503);
+  const photos = ((p && p.hits) || [])
+    .filter(x => !PEOPLE.test(x.tags || ''))
+    .slice(0, 18)
+    .map(x => ({
+      id: 'x' + x.id, alt: x.tags || '', color: '#111',
+      thumb: x.webformatURL, full: x.largeImageURL || x.webformatURL,
+      by: x.user || '', page: x.pageURL
+    }));
+  const videos = ((v && v.hits) || [])
+    .filter(x => !PEOPLE.test(x.tags || ''))
+    .map(x => {
+      const vs = x.videos || {}, f = vs.medium && vs.medium.url ? vs.medium : vs.small && vs.small.url ? vs.small : vs.large;
+      if (!f || !f.url) return null;
+      const thumb = (vs.medium && vs.medium.thumbnail) || (vs.small && vs.small.thumbnail) || (vs.tiny && vs.tiny.thumbnail) || '';
+      return { id: 'y' + x.id, thumb, file: f.url, w: f.width, h: f.height, dur: x.duration, by: x.user || '', page: x.pageURL, portrait: f.height > f.width };
+    })
+    .filter(x => x && x.thumb)
+    .sort((a, b) => (b.portrait ? 1 : 0) - (a.portrait ? 1 : 0))
+    .slice(0, 9);
+  return json({ q, provider: 'Pixabay', photos, videos }, 200, 3600);
+}
+
+async function pexels(key, q, kind, fr, page) {
   const headers = { Authorization: key };
   const get = url => fetch(url, { headers }).then(r => (r.ok ? r.json() : Promise.reject(r.status)));
-  const qs = `query=${encodeURIComponent(q)}&orientation=portrait&page=${page}${locale}`;
+  const qs = `query=${encodeURIComponent(q)}&orientation=portrait&page=${page}${fr ? '&locale=fr-FR' : ''}`;
   const [p, v] = await Promise.all([
     kind !== 'video' ? get(`https://api.pexels.com/v1/search?per_page=30&${qs}`).catch(e => ({ error: e })) : null,
     kind !== 'photo' ? get(`https://api.pexels.com/videos/search?per_page=15&size=medium&${qs}`).catch(e => ({ error: e })) : null
   ]);
   if ((p && p.error === 401) || (v && v.error === 401)) return json({ error: 'bad_key' }, 503);
-
   const photos = ((p && p.photos) || [])
     .filter(x => !PEOPLE.test(x.alt || '') && !PEOPLE.test(x.url || ''))
     .slice(0, 18)
@@ -53,5 +86,5 @@ export default async function handler(request) {
     })
     .filter(Boolean)
     .slice(0, 9);
-  return json({ q, photos, videos }, 200, 3600);
+  return json({ q, provider: 'Pexels', photos, videos }, 200, 3600);
 }
