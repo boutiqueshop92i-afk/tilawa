@@ -919,31 +919,43 @@ function setBg(bg){
 function markBg(){
   document.querySelectorAll('#bgGrid .bgt, #bgOwn .bgt').forEach(b => b.setAttribute('aria-checked', String(b.dataset.bg === S.style.bg)));
 }
-let bgFilter = 'all', thumbIO = null;
+let bgFilter = null;
+const thumbCache = new Map();
 function buildBgPicker(){
+  if(!bgFilter) bgFilter = (TilawaScenes.resolve(S.style.bg).scene || TilawaScenes.SCENES[0]).id;
   const chips = $('sceneChips'); chips.textContent = '';
-  const mkChip = (id, name) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'chip'; b.setAttribute('role', 'radio'); b.dataset.v = id; b.textContent = name;
-    b.setAttribute('aria-checked', String(bgFilter === id)); b.onclick = () => { bgFilter = id; chips.querySelectorAll('.chip').forEach(c => c.setAttribute('aria-checked', String(c.dataset.v === id))); renderBgGrid(); }; chips.append(b); };
-  mkChip('all', 'Tous (' + TilawaScenes.ALL.length + ')');
-  TilawaScenes.SCENES.forEach(s => mkChip(s.id, s.name));
+  TilawaScenes.SCENES.forEach(sc => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'chip'; b.setAttribute('role', 'radio'); b.dataset.v = sc.id; b.textContent = sc.name;
+    b.setAttribute('aria-checked', String(bgFilter === sc.id));
+    b.onclick = () => { bgFilter = sc.id; chips.querySelectorAll('.chip').forEach(c => c.setAttribute('aria-checked', String(c.dataset.v === sc.id))); renderBgGrid(); };
+    chips.append(b);
+  });
   renderBgGrid();
+  const on = chips.querySelector('[aria-checked=true]'); if(on) chips.scrollLeft = on.offsetLeft - 16;
 }
+let thumbJob = 0;
 function renderBgGrid(){
   const grid = $('bgGrid'); grid.textContent = '';
-  if(thumbIO) thumbIO.disconnect();
-  thumbIO = 'IntersectionObserver' in window ? new IntersectionObserver(es => { for(const e of es) if(e.isIntersecting){ drawThumb(e.target); thumbIO.unobserve(e.target); } }, {rootMargin:'200px'}) : null;
-  const list = TilawaScenes.ALL.filter(b => bgFilter === 'all' || b.scene.id === bgFilter);
+  const list = TilawaScenes.ALL.filter(b => b.scene.id === bgFilter), todo = [];
   for(const b of list){
     const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'bgt'; btn.setAttribute('role', 'radio'); btn.dataset.bg = b.id; btn.setAttribute('aria-label', b.name);
     btn.setAttribute('aria-checked', String(S.style.bg === b.id));
-    const c = document.createElement('canvas'); c.width = 90; c.height = 160; btn.append(c);
-    const l = document.createElement('span'); l.className = 'lab'; l.textContent = bgFilter === 'all' ? b.name : b.pal.name; btn.append(l);
+    const img = document.createElement('img'); img.alt = ''; img.decoding = 'async'; btn.append(img);
+    const l = document.createElement('span'); l.className = 'lab'; l.textContent = b.pal.name; btn.append(l);
     btn.onclick = () => setBg(b.id);
     grid.append(btn);
-    if(thumbIO) thumbIO.observe(btn); else drawThumb(btn);
+    if(thumbCache.has(b.id)) img.src = thumbCache.get(b.id); else todo.push([b.id, img]);
   }
+  // Vignettes dessinées une par une, sans bloquer la page
+  const job = ++thumbJob;
+  const step = () => {
+    if(job !== thumbJob || !todo.length) return;
+    const [id, img] = todo.shift();
+    try { const url = TilawaScenes.thumbURL(id, 135, 240, 2.5); thumbCache.set(id, url); img.src = url; } catch(e){ console.error(e); }
+    setTimeout(step, 16);
+  };
+  step();
 }
-function drawThumb(btn){ const c = btn.querySelector('canvas'); if(!c || c.dataset.done) return; c.dataset.done = '1'; try { TilawaScenes.thumb(c, btn.dataset.bg, 2.5); } catch(e){ console.error(e); } }
 function styleChanged(){ store(); rebuild(); updateCaption(); }
 function syncStyleInputs(){
   const st = S.style;

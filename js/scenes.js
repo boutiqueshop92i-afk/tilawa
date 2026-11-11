@@ -22,10 +22,11 @@
 
   function grad(g, stops, y0, y1){ const gr = g.createLinearGradient(0, y0 || 0, 0, y1 == null ? H : y1); stops.forEach(([o, c]) => gr.addColorStop(o, c)); return gr; }
   const sky4 = (g, P, a, b, c) => grad(g, [[0, P.sky[0]], [a || .45, P.sky[1]], [b || .75, P.sky[2]], [c || 1, P.sky[3]]]);
+  let RES = 1;   // résolution des images intermédiaires (réduite pour les vignettes)
   function softSprite(size, rgb, a){
-    const c = mk(size, size), q = c.getContext('2d'), rg = q.createRadialGradient(size/2, size/2, 0, size/2, size/2, size/2);
+    const n = Math.max(4, Math.round(size * RES)), c = mk(n, n), q = c.getContext('2d'), rg = q.createRadialGradient(n/2, n/2, 0, n/2, n/2, n/2);
     rg.addColorStop(0, rgba(rgb, a)); rg.addColorStop(.5, rgba(rgb, a * .45)); rg.addColorStop(1, rgba(rgb, 0));
-    q.fillStyle = rg; q.fillRect(0, 0, size, size); return c;
+    q.fillStyle = rg; q.fillRect(0, 0, n, n); return c;
   }
   function stars(g, r, n, maxY, maxR){ g.fillStyle = '#fff'; for(let i=0;i<n;i++){ g.globalAlpha = 0.12 + r()*0.5; g.beginPath(); g.arc(r()*W, Math.pow(r(), 1.6)*maxY, 0.5 + r()*(maxR || 1.4), 0, 6.283); g.fill(); } g.globalAlpha = 1; }
   function glowAt(g, x, y, rad, rgb, a){ const gl = g.createRadialGradient(x, y, 0, x, y, rad); gl.addColorStop(0, rgba(rgb, a)); gl.addColorStop(1, rgba(rgb, 0)); g.fillStyle = gl; g.fillRect(0, 0, W, H); }
@@ -64,7 +65,7 @@
           const a = (0.08 + 0.32*(0.5 + 0.5*Math.sin(t*w.s + w.p))) * (1 - Math.abs(w.x)*0.7) * (0.35 + 0.65*(1 - d*0.6)); ctx.fillStyle = rgba(P.acc, a); ctx.fillRect(cx - len/2, y, len, 1.5 + z*4); } }},
     {id:'pluie', name:'Pluie', base(g, P, r){
         g.fillStyle = grad(g, [[0, P.sky[0]], [.55, P.sky[1]], [1, P.sky[3]]]); g.fillRect(0, 0, W, H);
-        const cols = [P.glow, P.acc2, P.acc, P.glow]; for(let i=0;i<34;i++){ const s = 60 + r()*220; g.drawImage(softSprite(s, cols[i % 4], 0.2 + r()*0.28), r()*W - s/2, H*0.25 + r()*H*0.7 - s/2); } },
+        const cols = [P.glow, P.acc2, P.acc, P.glow]; for(let i=0;i<34;i++){ const s = 60 + r()*220; g.drawImage(softSprite(s, cols[i % 4], 0.2 + r()*0.28), r()*W - s/2, H*0.25 + r()*H*0.7 - s/2, s, s); } },
       init(P, r){ return {d: Array.from({length:170}, (_, i) => ({x:r()*W*1.2, y:r()*H, v:(i % 3 ? 1300 : 2100) + r()*500, l:(i % 3 ? 26 : 60) + r()*30, near: i % 3 === 0}))}; },
       frame(ctx, t, s, P){ ctx.lineWidth = 1.6; ctx.lineCap = 'round';
         for(const near of [false, true]){ ctx.strokeStyle = rgba(P.acc, near ? 0.3 : 0.16); ctx.beginPath();
@@ -77,14 +78,14 @@
       init(P){ return {m: softSprite(900, P.glow, 0.2)}; },
       frame(ctx, t, s){ for(let i=0;i<4;i++){ const x = ((i*420 + t*(10 + i*4)) % (W + 1100)) - 900, y = H*(0.58 + i*0.08); ctx.drawImage(s.m, x, y - 120, 1100, 240); } }},
     {id:'nuages', name:'Nuages', base(g, P){ g.fillStyle = grad(g, [[0, P.sky[0]], [.5, P.sky[1]], [.85, P.sky[2]], [1, P.sky[3]]]); g.fillRect(0, 0, W, H); },
-      init(P, r){ return {c: Array.from({length:7}, (_, k) => { const cw = 700, ch = 300, cc = mk(cw, ch), q = cc.getContext('2d');
-          for(let i=0;i<16;i++){ const z = 120 + r()*180; q.drawImage(softSprite(z, P.acc, 0.14 + r()*0.12), 80 + r()*(cw - 160) - z/2, ch/2 + (r()-.5)*90 - z/2); }
+      init(P, r){ return {c: Array.from({length:7}, (_, k) => { const cw = 700, ch = 300, cc = mk(cw * RES, ch * RES), q = cc.getContext('2d'); q.scale(RES, RES);
+          for(let i=0;i<16;i++){ const z = 120 + r()*180; q.drawImage(softSprite(z, P.acc, 0.14 + r()*0.12), 80 + r()*(cw - 160) - z/2, ch/2 + (r()-.5)*90 - z/2, z, z); }
           return {c:cc, x:r()*W*1.6, y:H*0.08 + k*H*0.13 + (r()-.5)*80, v:6 + r()*12, sc:0.8 + r()*0.7}; })}; },
       frame(ctx, t, s){ for(const k of s.c){ const w = 700*k.sc, x = ((k.x + t*k.v) % (W + w)) - w; ctx.drawImage(k.c, x, k.y, w, 300*k.sc); } }},
     {id:'rayons', name:'Rayons de lumière', base(g, P){ g.fillStyle = grad(g, [[0, P.sky[1]], [.5, P.sky[0]], [1, P.sky[3]]]); g.fillRect(0, 0, W, H); },
-      init(P, r){ return {ray: mk(W/8, H/8), dust: softSprite(32, P.acc, 0.9), rays: Array.from({length:6}, (_, i) => ({a:-0.36 + i*0.14 + (r()-.5)*0.06, w:0.05 + r()*0.05, p:r()*6.283, al:0.10 + r()*0.10})),
+      init(P, r){ return {ray: mk(W/8 * Math.min(1, RES * 4), H/8 * Math.min(1, RES * 4)), dust: softSprite(32, P.acc, 0.9), rays: Array.from({length:6}, (_, i) => ({a:-0.36 + i*0.14 + (r()-.5)*0.06, w:0.05 + r()*0.05, p:r()*6.283, al:0.10 + r()*0.10})),
           m: Array.from({length:60}, () => ({x:r()*W, y:r()*H, s:2 + r()*6, v:4 + r()*10, p:r()*6.283, a:0.15 + r()*0.45}))}; },
-      frame(ctx, t, s, P){ const q = s.ray.getContext('2d'), k = 1/8, ox = 540*k, oy = -300*k, L = H*1.3*k; q.clearRect(0, 0, s.ray.width, s.ray.height);
+      frame(ctx, t, s, P){ const q = s.ray.getContext('2d'), k = s.ray.width / W, ox = 540*k, oy = -300*k, L = H*1.3*k; q.clearRect(0, 0, s.ray.width, s.ray.height);
         for(const r of s.rays){ const a = r.a + Math.sin(t*0.15 + r.p)*0.03, w = r.w*(0.85 + 0.15*Math.sin(t*0.4 + r.p)), gr = q.createLinearGradient(ox, oy, ox + Math.sin(a)*L, oy + Math.cos(a)*L);
           gr.addColorStop(0, rgba(P.glow, r.al)); gr.addColorStop(.55, rgba(P.glow, r.al*0.4)); gr.addColorStop(1, rgba(P.glow, 0)); q.fillStyle = gr;
           q.beginPath(); q.moveTo(ox, oy); q.lineTo(ox + Math.sin(a - w)*L, oy + Math.cos(a - w)*L); q.lineTo(ox + Math.sin(a + w)*L, oy + Math.cos(a + w)*L); q.closePath(); q.fill(); }
@@ -131,12 +132,18 @@
     ctx.drawImage(cur.base, 0, 0);
     cur.scene.frame(ctx, t, cur.st, cur.pal);
   }
-  /* Vignette : dessin direct à petite taille, sans garder de grande image en mémoire */
-  function thumb(canvas, id, t){
-    const {scene, pal} = resolve(id), r = rng(seedOf(id)), g = canvas.getContext('2d');
-    g.save(); g.setTransform(canvas.width / W, 0, 0, canvas.height / H, 0, 0);
-    scene.base(g, pal, r); scene.frame(g, t == null ? 2.5 : t, scene.init(pal, r), pal);
-    g.restore();
+  /* Vignette : dessinée à petite taille sur une toile partagée, rendue en image JPEG.
+     Les iPhone limitent la mémoire des toiles : on n'en garde aucune par vignette. */
+  let work = null;
+  function thumbURL(id, w, h, t){
+    const {scene, pal} = resolve(id), r = rng(seedOf(id));
+    if(!work || work.width !== w || work.height !== h) work = mk(w, h);
+    const g = work.getContext('2d');
+    g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, w, h); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+    RES = Math.max(0.3, w / W);
+    try { g.setTransform(w / W, 0, 0, h / H, 0, 0); scene.base(g, pal, r); scene.frame(g, t == null ? 2.5 : t, scene.init(pal, r), pal); }
+    finally { RES = 1; g.setTransform(1, 0, 0, 1, 0, 0); }
+    return work.toDataURL('image/jpeg', 0.8);
   }
-  global.TilawaScenes = {SCENES, PALETTES, ALL, draw, thumb, resolve, W, H};
+  global.TilawaScenes = {SCENES, PALETTES, ALL, draw, thumbURL, resolve, W, H};
 })(window);
