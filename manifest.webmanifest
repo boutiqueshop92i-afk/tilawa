@@ -1,0 +1,17 @@
+{
+  "name": "Tilawa · vidéos de récitation du Coran",
+  "short_name": "Tilawa",
+  "description": "Crée des vidéos de récitation du Coran pour TikTok : plus de 200 récitateurs, texte et traduction synchronisés, plus de 100 fonds.",
+  "lang": "fr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0f1d",
+  "theme_color": "#0a0f1d",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
