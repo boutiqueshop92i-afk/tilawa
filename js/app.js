@@ -661,11 +661,25 @@ async function fastExport(){
     const spec = au && S.style.viz ? makeSpectrum(S.buffer) : null;
     const venc = new VideoEncoder({output:(c, m) => { if(m && m.decoderConfig) mux.setVideoConfig(m.decoderConfig.description); const b = new Uint8Array(c.byteLength); c.copyTo(b); mux.addVideo(b, c.type === 'key', c.timestamp); }, error:e => { job.error = e; }});
     venc.configure(cfg.video);
-    const vid = S.style.bg === 'video' && S.media.video ? S.media.video : null; if(vid) vid.pause();
+    const vid = S.style.bg === 'video' && S.media.video ? S.media.video : null;
+    // Fond vidéo : on le laisse jouer et on prend l'image du moment (chercher chaque image une à une est très lent)
+    let vplay = false; const vc = {last: 0, loops: 0};
+    if(vid){
+      vid.pause(); await seekVideo(vid, 0); vid.loop = true; vid.playbackRate = 1;
+      try { await withTimeout(vid.play(), 3000, 'video'); vplay = !vid.paused; } catch(e){ vplay = false; }
+      if(!vplay) vid.pause();
+    }
     for(let i=0; i<N; i++){
       if(job.cancel || job.error) break;
       const t = i / fps;
-      if(vid) await seekVideo(vid, vid.duration ? t % vid.duration : 0);
+      if(vid && vplay){
+        const w0 = performance.now();
+        for(;;){
+          const ct = vid.currentTime; if(ct + 0.05 < vc.last) vc.loops++; vc.last = ct;
+          if(vc.loops * (vid.duration || 1) + ct >= t || vid.paused || performance.now() - w0 > 1500) break;
+          await new Promise(r => setTimeout(r, 4));
+        }
+      } else if(vid) await seekVideo(vid, vid.duration ? t % vid.duration : 0);
       job.viz = spec ? spec(t) : null;
       render(t);
       const vf = new VideoFrame(cv, {timestamp: Math.round(i*1e6/fps), duration: Math.round(1e6/fps)});
@@ -677,6 +691,7 @@ async function fastExport(){
         await yieldNow();
       }
     }
+    if(vid) vid.pause();
     if(job.cancel){ try { venc.close(); } catch(e){} toast('Création annulée.'); return true; }
     if(job.error) throw job.error;
     await venc.flush(); venc.close();
@@ -1069,6 +1084,9 @@ function onVideo(file){
   v.onloadeddata = () => { S.media.video = v; S.media.vidUrl = url; if(S.style.overlay < 0.3){ S.style.overlay = 0.45; syncStyleInputs(); } setBg('video'); setTimeout(() => render(currentT()), 120); };
   v.onerror = () => toast("Cette vidéo n'a pas pu être ouverte.");
   v.src = url; v.load();
+  if(S.media.video && S.media.video !== v && S.media.video.parentNode) S.media.video.remove();
+  v.setAttribute('aria-hidden', 'true'); v.style.cssText = 'position:fixed;left:0;top:0;width:2px;height:2px;opacity:0;pointer-events:none';
+  document.body.append(v);
   $('ownVid').hidden = false;
 }
 
