@@ -3,6 +3,9 @@
 // Aucune personne : on écarte les résultats dont la description parle de gens.
 export const config = { runtime: 'edge' };
 
+// Rien de religieux d'une autre croyance, pas d'idoles ni de statues, pas de dessins ni de fêtes : fonds sobres pour le Coran.
+const BANNED = /\b(god|gods|goddess|deity|deities|ganesh|ganesha|hindu|hinduism|krishna|shiva|buddha|buddhism|buddhist|jesus|christ|christian|christianity|church|churches|cathedral|chapel|abbey|monastery|monk|monks|nun|cross|crosses|crucifix|bible|angel|angels|saint|idol|idols|statue|statues|sculpture|shrine|pagoda|altar|religion|religious|christmas|xmas|santa|halloween|easter|zodiac|horoscope|tarot|witch|magic|fantasy|fairy|cartoon|comic|anime|manga|illustration|drawing|painting|art|alcohol|wine|beer|cocktail|whiskey|bikini|lingerie|sexy|pig|pigs|pork|casino|music|guitar|piano|concert)\b/i;
+const bad = tags => PEOPLE.test(tags || '') || BANNED.test(tags || '');
 const PEOPLE = /\b(man|men|woman|women|person|persons|people|girl|girls|boy|boys|child|children|kid|kids|baby|lady|ladies|guy|guys|tourist|tourists|crowd|couple|family|portrait|face|faces|hand|hands|soldier|soldiers|warrior|selfie|model|bride|groom|player|worker|farmer|rider|cowboy|athlete|dancer|praying|prayer|muslim|hijab|niqab|silhouette of a|human)\b/i;
 
 function json(body, status, maxAge) {
@@ -39,7 +42,7 @@ async function pixabay(key, q, kind, fr, page) {
   ]);
   if ((p && (p.error === 400 || p.error === 401)) && (!v || v.error)) return json({ error: 'bad_key' }, 503);
   const photos = ((p && p.hits) || [])
-    .filter(x => !PEOPLE.test(x.tags || ''))
+    .filter(x => !bad(x.tags))
     .slice(0, 18)
     .map(x => ({
       id: 'x' + x.id, alt: x.tags || '', color: '#111',
@@ -47,7 +50,7 @@ async function pixabay(key, q, kind, fr, page) {
       by: x.user || '', page: x.pageURL
     }));
   const videos = ((v && v.hits) || [])
-    .filter(x => !PEOPLE.test(x.tags || ''))
+    .filter(x => !bad(x.tags))
     .map(x => {
       const vs = x.videos || {}, f = vs.medium && vs.medium.url ? vs.medium : vs.small && vs.small.url ? vs.small : vs.large;
       if (!f || !f.url) return null;
@@ -70,7 +73,7 @@ async function pexels(key, q, kind, fr, page) {
   ]);
   if ((p && p.error === 401) || (v && v.error === 401)) return json({ error: 'bad_key' }, 503);
   const photos = ((p && p.photos) || [])
-    .filter(x => !PEOPLE.test(x.alt || '') && !PEOPLE.test(x.url || ''))
+    .filter(x => !bad(x.alt) && !bad(x.url))
     .slice(0, 18)
     .map(x => ({
       id: 'p' + x.id, alt: x.alt || '', color: x.avg_color || '#111',
@@ -78,7 +81,7 @@ async function pexels(key, q, kind, fr, page) {
       by: x.photographer || '', page: x.url
     }));
   const videos = ((v && v.videos) || [])
-    .filter(x => !PEOPLE.test(x.url || ''))
+    .filter(x => !bad(x.url))
     .map(x => {
       const files = (x.video_files || []).filter(f => f.file_type === 'video/mp4' && f.height > f.width && f.link);
       files.sort((a, b) => Math.abs(a.height - 1280) - Math.abs(b.height - 1280));
